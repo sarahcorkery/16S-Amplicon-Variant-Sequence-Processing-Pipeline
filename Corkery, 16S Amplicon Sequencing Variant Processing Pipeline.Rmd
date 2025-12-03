@@ -1,0 +1,495 @@
+---
+title: "Assignment 3 RMD Script"
+author: "Sarah Corkery"
+date: "2025-11-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## SCRIPT FOR USING DADA2 AND PHYLOSEQ FOR AMPLICON SEQUENCING DATA ANALYSIS AND VISUALIZATION
+
+The following is an RMD script of the R Studio DADA2 and PHYLOSEQ pipeline. The DADA2 portion of this script will allow us to process amplicon sequencing data to identify and quantify amplicon sequence variants (ASVs). The latter portion of this script uses PHYLOSEQ to visualize the relative abundance of our processed amplicon sequencing data. 
+
+## BEGINNING OF DADA2 PORTION OF THIS SCRIPT
+
+# To begin, we will want to install DADA2 if we do not already have it installed. Do this by adding the script below to the console. 
+
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+# install.packages("BiocManager")
+# BiocManager::install("dada2")
+
+```{r}
+# Whether you have DADA2 already installed, our next step will be to load it into our environment using the script below:
+library(dada2); packageVersion("dada2")
+```
+
+## The following steps are placed outside of a chunk as they are intended to be adjusted prior to running this script. 
+
+Manual Steps Here: 
+
+# First, we need to download the "Zip folder with sequence files" under the Assignment 3 tab on Courselink. This folder contains the fastq.gz sequence files we'll be using to identify and generate ASVs. The P1 files represent forward and reverse reads of a pumice rock sample collected from a sub-marine erupted volcano in the South Pacific. The Wneg files represent the forward and reverse reads from a negative control sequence dataset.
+
+# Please manually save or download this folder to where you intend to set your working directory, and then unzip the fastq.gz files within. Ensure they are .fastq files before moving forward. 
+
+# Next, we must assign our working directory. Be sure to set your working directory to where your sequence files are located!
+setwd("/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/Assignment Files/Assignment3/") 
+
+# To make the location to these files more easily accessible for downstream commands, be sure to assign your working directory (i.e., where our files are located) to an object called path.
+path<-"/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/Assignment Files/Assignment3/" 
+
+# To ensure our files are stored in our working directory, we can execute the script below. This will allow us to list the files in our path object or working directory, confirming their presence. 
+list.files(path)
+print(path)
+
+```{r}
+# Our forward and reverse fastq files should have the naming format: SAMPLENAME_R1_001.fastq and SAMPLENAME_R2_001.fastq. 
+# Below, we will tell R studio what formatting represents a forward and reverse read file. This is done by assigning forward and reverse reads to the objects fnFs for forward reads, and fnRs for reverse reads. 
+fnFs <- sort(list.files(path, pattern="_R1_001.fastq", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern="_R2_001.fastq", full.names = TRUE))
+```
+
+```{r}
+# Now, assuming files have the naming format: SAMPLENAME_XXX.fastq, we will extract the forward read sample names present in fnFs to make a list. This is not done for the reverse read sample names as they will be identical to the forward read names.    
+sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
+```
+
+```{r}
+# Using the command below, we can visualize the quality profiles of our forward reads:
+plotQualityProfile(fnFs[1:2])
+```
+# This graph represents the frequency of each quality score at each base position. The quality score of our reads, represented on the y-axis, is a measurement of certainty that our reads have been correctly sequenced. The cycle value, represented on the x-axis, represents base positions or pairs. 
+
+# The mean quality score at each base position or pair is represented by the green line, while the quartiles of the quality score distribution are shown by the orange lines. The red line shows the scaled proportion of reads that extend to at least that position.
+
+# This graph tells us that our forward reads are good quality, but require minor trimming. A quality score of 30 is advised, which aligns with the base position of 260. We will, hence, truncate (trim) our forward reads at the position 260. 
+
+## One should select truncation parameters based on the quality scores of samples and not negative controls.
+
+```{r}
+# Now we can visualize the quality profile of the reverse reads using the command below:
+plotQualityProfile(fnRs[1:2])
+```
+# As is expected, our reverse are of much worse quality, if we're aiming to cut this off at a quality score of 30, we'll truncate our reverse reads at 200 base pairs. 
+
+# When truncating reads, you need to make sure you're leaving at least a 50 base pair overlap between forward and reverse reads, as this is necessary for the merging of reads. If you have no sequences left after trimming, you were too stringent.  
+
+# In the event you choose to use this script for other datasets, your reads must still overlap after truncation in order to merge them later! If you are using a low-overlap primer set, like V1-V2 or V3-V4, your truncation length must be large enough to maintain 20 + biological.length.variation nucleotides of overlap between them.
+ 
+```{r}
+# Next, we will assign filenames to our filtered fastq.gz files. Then, we will place our filtered files into the filtered subdirectory. This will be created in your working directory. 
+filtFs <- file.path(path, "filtered", paste0(sample.names, "_F_filt.fastq.gz"))
+filtRs <- file.path(path, "filtered", paste0(sample.names, "_R_filt.fastq.gz"))
+names(filtFs) <- sample.names
+names(filtRs) <- sample.names
+```
+
+```{r}
+# Next, we will trim and filter our reads using the filterAndTrim() function. We’ll use standard filtering parameters: maxN=0 (DADA2 requires no Ns, the second it can't decipher a nucleotide it'll through the whole sequence out), truncQ=2, rm.phix=TRUE and maxEE=c(2,2) (maxEE allows two errors per read in the forward and reverse reads). The maxEE parameter sets the maximum number of “expected errors” allowed in a read, which is a better filter than simply averaging quality scores. 
+# We will be sure to change the truncLen parameter to 260, 200, reflecting the lengths we want to truncate our forward and reverse reads to. Be sure to change this number depending on the dataset you are working with!
+
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(260,200),
+              maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
+              compress=TRUE, multithread=TRUE) # On Windows be sure to set multithread=FALSE!
+
+head(out)
+```
+# The output of this command will tells you how many reads were present before and after filtering and trimming.
+
+# If working with a different dataset read the comments below:
+# The standard filtering parameters are starting points, not set in stone. If you want to speed up downstream computation, consider tightening maxEE. If too few reads are passing the filter, consider relaxing maxEE, perhaps especially on the reverse reads (eg. maxEE=c(2,5)), and reducing the truncLen to remove low quality tails. Remember though, when choosing truncLen for paired-end reads you must maintain overlap after truncation in order to merge them later.
+
+# If you are struggling to determine truncation lengths, you can utilize the software Figaro, which is accessible online.  
+
+# If you are working with fungi, you have sequenced the inter-transcribed (ITS) region, which is notorius for having significant variation in length and expected base pairs. You can find a DADA2 ITS workflow github tutorial online that can aid you processing ITS amplicon sequencing data. 
+
+```{r}
+# The learnErrors() function estimates error rates from our sequencing data.
+# This method learns this error model from the data, by alternating estimation of the error rates and inference of sample composition until they converge on a jointly consistent solution. The DADA2 algorithm relies on a parametric error model to distinguish true biological sequences from sequencing errors, giving us higher taxonomic resolution compared to what operational taxonomic units would provide.The output of this function is subsequently used as the “err” parameter in downstream DADA2 analysis. 
+errF <- learnErrors(filtFs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
+```
+
+```{r}
+# It is always worthwhile, as a sanity check, to visualize the estimated error rates:
+plotErrors(errF, nominalQ=TRUE)
+```
+# The error rates for each possible transition (A→C, A→G, …) are shown. Points are the observed error rates for each consensus quality score. The black line shows the estimated error rates after convergence of the machine-learning algorithm. The red line shows the error rates expected under the nominal definition of the Q-score. Here the estimated error rates (black line) are a good fit to the observed rates (points), and the error rates drop with increased quality as expected. Everything looks reasonable and we can proceed with confidence. 
+
+# You can tell if you have good or bad error rates based on whether the estimated error rates are a good fit to the observed rates. If there is too much divergence, our data may not be useable. 
+
+```{r}
+# Next, we'll be applying the core sample inference algorithm to the filtered and trimmed sequence data. With this command we take each sample's reads and use our error rates to infer which sequences are real biological variants and which are sequencing errors. dada() then infers the true error-free ASVs in each sample and how many reads belong to each. It outputs this all to dadaFs for forward reads and dadaRs for reverse reads. 
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+dadaRs <- dada(filtRs, err=errR, multithread=TRUE)
+dadaFs[[1]]
+```
+# Denoised can be defined as removing unwanted background noise. 
+
+```{r}
+# The following command will merge our denoised forward and reverse reads to obtain the full denoised sequences, and assign them to the mergers object. Merging is performed by aligning the denoised forward reads with the reverse-complement of the corresponding denoised reverse reads, and then constructing the merged “contig” sequences. 
+
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+
+# We will use the command below to inspect the merger data.frame from our first sample, P1: 
+head(mergers[[1]])
+```
+
+# The mergers object is a list of data.frames from each sample. Each data.frame contains merged sequences (ASVs), their abundance, and indices of the forward and reverse sequence variants that were merged. Paired reads that did not exactly overlap were removed by mergePairs, further reducing output.
+
+```{r}
+# We can now construct an ASV table, a higher-resolution version of the OTU table produced by traditional methods.
+seqtab <- makeSequenceTable(mergers)
+dim(seqtab)
+```
+
+```{r}
+# From here we can inspect the distribution of sequence lengths. 
+table(nchar(getSequences(seqtab)))
+```
+# This sequence table is a matrix with rows corresponding to (and named by) the samples, and columns corresponding to (and named by) the sequence variants or ASVs. It specifically informs us of the abundance of ASVs of a specific length. For instance, only 1 ASV found has a length of 285 base pairs.
+
+# Considerations for your own data: Sequences that are much longer or shorter than expected may be the result of non-specific priming. You can remove non-target-length sequences from your sequence table (eg. seqtab2 <- seqtab[,nchar(colnames(seqtab)) %in% 250:256]). This is analogous to “cutting a band” in-silico to get amplicons of the targeted length.
+
+```{r}
+# While the dada() function corrects substitutions, indel errors and chimeras remain. A chimera is a DNA sequence that incorrectly combines material from two or more genuine biological sequences. Fortunately, the accuracy of sequence variants after denoising makes identifying chimeric ASVs simpler than when dealing with OTUs. Chimeric sequences are identified if they can be exactly reconstructed by combining a left-segment and a right-segment from two more abundant “parent” sequences.
+
+# The following commands will construct and remove chimeras from our collection of sequences. 
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+dim(seqtab.nochim)
+```
+```{r}
+# Here, we're dividing the table containing no chimeras with the table containing chimeras, to get a percentage of chimeric sequences in our original list of ASVs. 
+sum(seqtab.nochim)/sum(seqtab)
+```
+# We can deduce that roughly ~47% of the ASVs in our chimera table were potential chimeras. Oftentimes, large removals of chimeric reads are a result of failure to remove ambiguous nucleotide primer sequences prior to dada2 pipeline processing. In addition, there is a higher risk for chimeras if reads lack necessary overlap for merging.
+
+```{r}
+# As a final check of our progress, we’ll look at the number of reads that made it through each step in the pipeline using the commands below:
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab.nochim))
+
+# If you are processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+rownames(track) <- sample.names
+head(track)
+```
+# This table tells us how many reads remain following each step in the pipeline, starting with the reads you input, followed by the filtering, denoising and merging steps and then the removal of chimeras. The large removal of chimeric sequences may be due to failing to remove ambiguous nucleotide primer sequences prior to DADA2 pipeline processing.
+
+# Next, we will assign taxonomy to our sequences using the assignTaxonomy() function. This function requires appropriately formatted FASTA files containing taxonomically classified reference sequences to use as a training dataset. To facilitate this process, we will download the SILVA taxonomy database, which provides the necessary reference sequences for accurate taxonomic assignment.
+
+# At this link: https://zenodo.org/records/14169026, we will download the most recent version of SILVA, version 138.2 to our computer. We must state the path to this file on our computer in the assignTaxonomy() function below. Be sure to state the version of SILVA you used when publishing your findings. 
+
+```{r}
+# Using the command below, we tell DADA2 to assign taxonomy to our seqtab.nochim matrix, containing our non-chimeric ASVs and their abundances. The assignTaxonomy() function will use SILVA, version 138.2 as a training dataset to assign taxonomy. 
+taxa <- assignTaxonomy(seqtab.nochim, "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/R files/Silva/silva_nr99_v138.2_toSpecies_trainset.fa.gz", multithread=TRUE)
+```
+
+# DADA2 only makes species level assignments based on exact matching between ASVs and sequenced reference strains. Recent analysis suggests that exact matching (or 100% identity) is the only appropriate way to assign species to 16S gene fragments.
+
+```{r}
+# The addSpecies() function will assign species-level annotation to our taxonomic table. We will assign this table as an object called taxa. 
+taxa <- addSpecies(taxa, "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/R files/Silva/silva_v138.2_assignSpecies.fa.gz")
+```
+
+```{r}
+# Next, we will inspect the taxonomic assignment by removing sequence rownames for display purposes only.
+taxa.print <- taxa
+rownames(taxa.print) <- NULL
+head(taxa.print)
+```
+## Note: NA represents a non-confidence assignment.
+
+## Considerations for your own data: If your reads do not seem to be appropriately assigned, for example lots of your bacterial 16S sequences are being assigned as Eukaryota NA NA NA NA NA, your reads may be in the opposite orientation as the reference database. Tell dada2 to try the reverse-complement orientation with assignTaxonomy(..., tryRC=TRUE) and see if this fixes the assignments. If using DECIPHER for taxonomy, try IdTaxa (..., strand="both").
+
+## The following steps are placed outside of a chunk as they are intended to be adjusted prior to running this script. 
+
+Manual Step here: 
+
+# Here we want to save our taxa object, containing taxonomic assignments, our seqtab.nochim object, containing our ASVs and their abundances, and our track object, showing the remaining reads following each step of the DADA2 pipeline as .csv files. This step will allow us to save our progress, and later read in data, in the event our objects are lost or we terminate our R Studio session. 
+
+write.csv(taxa, file = "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/Assignment Files/Assignment3/taxaASSIGNMENT3.csv")
+
+write.csv(seqtab.nochim, file = "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/Assignment Files/Assignment3/seqtabnochimASSIGNMENT3.csv")
+
+write.csv(track, file = "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/Assignment Files/Assignment3/trackASSIGNMENT3.csv")
+
+# Using the commands below, we can read in the taxa, seqtab.nochim and track objects using the .csv files we made in the previous step. This is essential in the event our objects are lost or we terminate our R studio session:
+
+taxa <- read.csv(file = "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/Assignment Files/Assignment3/taxaASSIGNMENT3.csv")
+seqtab.nochim <- read.csv(file = "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/Assignment Files/Assignment3/seqtabnochimASSIGNMENT3.csv", header = FALSE)
+track <- read.csv(file = "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/Assignment Files/Assignment3/trackASSIGNMENT3.csv")
+
+# In the next set of chunks, we will change the formatting of our seqtab.nochim table. This is necessary for downstream work with phyloseq, as well as an optional step to merge seqtab.nochim with our taxa table for easier viewing.
+
+```{r}
+# Step 1: To begin this process, we will first transpose our seqtab.nochim table. You must use the imported seqtab.nochim object (fromm the .csv) in the previous step for this step to run properly. 
+flipped_seqtab.nochim <- as.data.frame(t(seqtab.nochim))
+flipped_seqtab.nochim
+```
+
+# In this flipped csv, the header becomes a sequence (ASV) and moves the sample names to the first row (not the header).
+
+```{r}
+# Step 2: Next, we will copy the first row. 
+colnames(flipped_seqtab.nochim) <- flipped_seqtab.nochim[1,]
+# The command below allows us to verify that our formatting is correct thus far. It should look the same as it did following Step 1, apart from the header now stating the correct sample names. 
+View(flipped_seqtab.nochim)
+```
+
+```{r}
+# Step 3: Next, we will delete the first row of our transposed seqtab.nochim table. 
+flipped_seqtab.nochim <- flipped_seqtab.nochim[-1,]
+# The command below allows us to once again verify that our formatting is correct. The first row (not the header) should have been deleted. 
+View(flipped_seqtab.nochim)
+```
+
+# Next we want to change the names of the sequences to "ASV(n)" so it is more digestable than the nucleotide sequence itself. 
+
+```{r}
+# Step 4: In the command below, we will take each column and its corresponding row name, and paste "ASV"1,2,3.. as a new column next to our nucleotide sequence column.  
+rownames(flipped_seqtab.nochim) <- paste0("ASV", 1:nrow(flipped_seqtab.nochim))
+```
+
+```{r}
+# Step 5: Next, we'll remove the nucleotide sequences column and save this new table as flipped_seqtab.nochim_forself for our ease of viewing.  
+flipped_seqtab.nochim_forself <- flipped_seqtab.nochim[,-1]
+```
+
+```{r}
+# Step 6: We will then save these two tables (the one with our nucleotide sequences and the other without) as .csv files. In the event our R Studio session is lost, we can always read these files back in. 
+write.csv(flipped_seqtab.nochim, file = '/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/Assignment Files/Assignment3/flipped_seqtab.nochimASSIGNMENT3.csv')
+write.csv(flipped_seqtab.nochim_forself, file ='/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/Assignment Files/Assignment3/flipped_seqtab.nochim_forselfASSIGNMENT3.csv')
+```
+
+## The following steps are placed outside of a chunk as they are intended to be adjusted prior to running this script.
+
+Manual Step Here: 
+
+# Step 7: Next, as an optional step, we can use the cbind() function to save our flipped seqtab.nochim and taxa data as one csv. This approach offers the most comprehensive view of our ASV abundances and taxonomic classifications.
+
+OTUabund<-cbind(flipped_seqtab.nochim,taxa)
+write.csv(OTUabund,file='/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/Assignment Files/Assignment3/OTUabundASSIGNMENT3.csv')
+
+```{r}
+# Step 8: DADA2 generates the taxa object with sequences in the first column, a format incompatible with PHYLOSEQ. To ensure compatibility, we will remove this column using the command below. 
+taxa <-taxa[-1]
+# The command below allows us to verify that our formatting is correct. The first column containing nucleotide sequences should have been deleted.
+View(taxa)
+```
+
+## END OF THE DADA2 PORTION OF THIS SCRIPT
+
+## BEGINNING OF THE PHYLOSEQ PORTION OF THIS SCRIPT: 
+
+# To begin, we will want to install PHYLOSEQ and a set of additional packages (stated below) if they have not already been installed. Do this by adding the below script to the console. 
+# install.packages("phyloseq")
+# install.packages("Biostrings")
+# install.packages("ggplot2")
+# install.packages("RColorBrewer")
+# install.packages("tidyverse")
+
+# In the even that you receive the warning message: "Package ‘phyloseq’ is not available for this version of R" you can paste the following code into the console to download PHYLOSEQ: 
+# if (!require("BiocManager", quietly = TRUE))
+    # install.packages("BiocManager")
+# BiocManager::install("phyloseq")
+
+```{r}
+# Whether you have these packages already installed, our next step will be to load them into our environment using the script below:
+library(phyloseq)
+library(Biostrings)
+library(ggplot2)
+library(RColorBrewer)
+library(tidyverse)
+```
+
+```{r}
+# We will create a PHYLOSEQ object called "taxmat", containing our taxa data. We will make it a matrix such that it can be used by PHYLOSEQ.
+taxmat <- as.matrix(taxa)
+```
+
+```{r}
+# Next, we must make the final formatting changes to our transposed seqtab.nochim table such that it can be used by PHYLOSEQ. We will call this object otumat, and it will contain our ASV abundance data. Using the existing object "flipped_seqtab.nochim", we will delete the first column listing nucleotide sequences.
+otumat <- flipped_seqtab.nochim[,-1]
+
+# The command below allows us to once again verify that our formatting is correct. No column listing nucleotide sequences should be present.  
+View(otumat)
+```
+
+```{r}
+# In addition to this formatting change, we must ensure both otumat and taxmat are matrices for downstream PHYLOSEQ processing. We can check the class of both objects using the class() function: 
+class(otumat)
+class(taxmat)
+```
+
+```{r}
+# We can see that while taxmat is a matrix, otumat is not. We can convert it to a matrix using the command below: 
+otumat <- as.matrix(otumat)
+# Let's check one final time to verify that both otumat and taxmat are matrices. 
+class(otumat)
+class(taxmat)
+```
+
+# Since both objects are now matrices, we can move onto our last bit of formatting.
+
+```{r}
+# We will first ensure that the row names are ASVs for both objects:
+rownames(otumat) <- paste0("ASV", 1:nrow(otumat))
+rownames(taxmat) <- paste0("ASV", 1:nrow(taxmat))
+
+# We can verify this is the case using the commands below:
+View(otumat)
+View(taxmat)
+
+# Lastly, we must make sure R Studio recognizes our OTU data as numeric and not as character data. 
+class(otumat)<-"numeric"
+```
+
+# Now that we've verified that our rownames are ASVs and that R recognizes otumat as numeric data, we can use PHYLOSEQ to continue analysis. 
+
+```{r}
+# The next command is PHYLOSEQ-specific. Here, we are telling PHYLOSEQ where our "OTU" data can be found (i.e., within the otumat object). 
+OTU = otu_table(otumat, taxa_are_rows = TRUE)
+# Note: the function on line 354 is otu_table(). 
+```
+ 
+```{r}
+# Next, we will tell PHYLOSEQ where our "Taxa" data can be found (i.e., within the taxmat object).
+TAX = tax_table(taxmat)
+# Note: the function on line 360 is tax_table(). 
+```
+
+```{r}
+# Next, we will tell PHYLOSEQ to combine our "OTU" and "Taxa" data into an object called physeq. We will also instruct PHYLOSEQ to include the names of our samples in the physeq object. 
+physeq = phyloseq(OTU, TAX)
+physeq
+sample_names(physeq)
+samplenames<-sample_names(physeq)
+```
+
+## GRAPH PRODUCTION: 
+
+# Note for downstream graphing: To be able to export your graphs, you will need to run their scripts in the console. When graphs are produced from scripts in chunks, you cannot export them out of R. 
+
+# In the following chunks, we will create graphs showcasing the abundance and relative abundance of our ASVs by taxonomic rank. 
+
+```{r}
+# We will begin with creating a bar graph of our sample's absolute abundance by Phylum using the plot_bar() function.
+phylum_barplot <- plot_bar(physeq, fill = "Phylum")
+phylum_barplot
+```
+
+# Here, the space between each dark line represents the absolute abundance of a particular ASV. Unfortunately, these lines distract from the message of the plot, so we can remove them using ggplot2's geom_bar() function.
+
+```{r}
+# The following commands will remove the dark ASV lines from our Phylum absolute abundance graph. 
+phylum_barstacked <- phylum_barplot + geom_bar(aes(fill=Phylum), stat="identity", position="stack")
+phylum_barstacked
+```
+
+# Next, we will begin to create a relative abundance plot. 
+
+```{r}
+# The first step will use the tax_glom() PHYLOSEQ function to "glom" together ASVs based on our taxonomic assignment of choice. In this case, we will be combining our taxonomic data by Phylum to visualize downstream Phyla relative abundance.
+g_phylum <- tax_glom(physeq, "Phylum")
+```
+
+```{r}
+# The next command uses the plot_bar() function to plot our "glommed" g_phylum graph. We can use this graph to observe the differences in Phylum abundance more easily.
+plot_bar(g_phylum, fill="Phylum")
+```
+
+```{r}
+# Now that we've "glommed" together our taxa by Phylum, we can make a relative abundance graph from our absolute abundance data. We can do this by tallying up the ASVs within each taxa in one sample, and dividing by its total number of ASVs. Then we can use psmelt() to remove phyloseq's formatting and make the data easier to plot.
+ps_phylum_relabun <- transform_sample_counts(g_phylum, function(ASV) ASV/sum(ASV))
+taxa_abundance_table_phylum <- psmelt(ps_phylum_relabun)
+
+# Lastly, we will factor our Phylum values for downstream graphing. 
+taxa_abundance_table_phylum$Phylum<-factor(taxa_abundance_table_phylum$Phylum)
+```
+
+```{r}
+# Here we will save our relative abundance table as a .csv file for easy access downstream.  
+write.csv(taxa_abundance_table_phylum, file = "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/Assignment Files/Assignment3/RelativeAbundanceASSIGN3.csv")
+```
+
+```{r}
+# The following command uses plot_bar() to create a relative abundance table of our samples by Phylum. Here, we're plotting our absolute abundance PHYLOSEQ object ps_phylum_relabun. We state the fill of our bars using Phylum, and assign a title and axes titles using the labs() command. In order to fit the title below above our graph, we must set its size to 12 using the theme() command. 
+p_realabun<-plot_bar(ps_phylum_relabun, fill = "Phylum") + labs(y="Relative Abundance (%)", x= "Sample", title = "Relative Abundance by Phylum in Sub-Marine South Pacific Ocean Volcano Pumice Rock") + theme(plot.title = element_text(size = 12))
+p_realabun
+```
+
+# As mentioned, paste the script in the chunk above into the console to be able to export this graph. 
+
+```{r}
+# Should we desire to eliminate the dark lines present between each Phylum, we can assign the position argument within ggplot2's geom_bar() function as "stack":
+p_abun_stacked<- p_realabun + geom_bar(aes(fill=Phylum), stat="identity", position="stack")
+p_abun_stacked
+```
+
+```{r}
+# Next, we will create a graph displaying the relative abundance of our samples by the Order taxon.
+# First, we need to "glom" ASVs in each sample by Order using the tax_glom() command below.
+ps_order <- tax_glom(physeq, "Order")
+```
+
+```{r}
+# Here, we will again make a transformation of ASV counts and our glommed taxa from previous step. This will be done by tallying up the ASVs within each taxa in one sample, and dividing by its total number of ASVs. Then we can use psmelt() to remove PHYLOSEQ's formatting and make the data easier to plot.
+ps_order_relabun <- transform_sample_counts(ps_order, function(ASV) ASV/sum(ASV))
+taxa_abundance_table_order <- psmelt(ps_order_relabun)
+# Lastly, we will factor our Phylum values for downstream graphing.
+taxa_abundance_table_order$Order<-factor(taxa_abundance_table_order$Order)
+```
+ 
+```{r}
+# Using the absolute abundance PHYLOSEQ object we made using during previous analysis, we can plot the relative abundance of our sample by Order using the plot_bar() function. We state the fill argument as "Order", and assign a title and axes titles using the labs() command. In order to display the entire title below above our graph, we must set its size to 12 using the theme() command. 
+o_realabun <- plot_bar(ps_order_relabun, fill = "Order") + labs(y="Relative Abundance (%)", x="Sample", title="Relative Abundance by Order in Sub-Marine South Pacific Ocean Volcano Pumice Rock") + theme(plot.title = element_text(size = 12))
+o_realabun
+```
+
+```{r}
+# Should we desire to eliminate the dark lines present between each Order, we can assign the position argument within ggplot2's geom_bar() function as "stack":
+o_abun_stacked<- o_realabun + geom_bar(aes(fill=Order), stat="identity", position="stack")
+o_abun_stacked
+```
+
+# To answer question 3 in Part 2 of our assignment, we will produce a ggplot2 geom_point graph, presenting relative abundance by Order by sample. We will make it such that each point's size represents the relative abundance of an Order within a sample. 
+
+```{r}
+# To begin, taxa_abundance_table_order$Abundance[taxa_abundance_table_order$Abundance == 0] <- NA ensures that points representing a 0% relative abundance will not be displayed. 
+# We will use ggplot() to produce this graph. 
+# We will use taxa_abundance_table_order as our data input, rather than o_realabun, as ggplot() requires us to use a data frame for plotting.
+# aes() is used here for mapping and aesthetics purposes. We state that samples will be displayed on the x-axis, Order on the y-axis, and that the size of our points will represent an Order's relative abundance. 
+# geom_point(aes(colour=Order)) tells ggplot to make a geom_point graph, and that each point's colour should correspond to its Order.
+# scale_size_continuous() allows us to adjust the minimum and maximum size of our points as needed. We set the range from 1-10 to ensure points are distinguishable from one another. 
+# Lastly, labs tells us that we've set our title to "Relative Abundance by Order in Sub-Marine South Pacific Ocean Volcano Pumice Rock". It also informs us we've named our x-axis "Sample", our y-axis "Order" and our size legend "Relative Abundance (%)"
+taxa_abundance_table_order$Abundance[taxa_abundance_table_order$Abundance == 0] <- NA
+ggplot(data = taxa_abundance_table_order, aes(x = Sample, y = Order, size = Abundance)) +
+  geom_point(aes(colour=Order)) +
+  scale_size_continuous(range = c(1, 10)) +
+  labs(title = "Relative Abundance by Order in Sub-Marine South Pacific Ocean Volcano Pumice Rock", x = "Sample ", y = "Order", size = "Relative Abundance (%)")
+```
+
+# To answer Part 3, we can produce a heatmap or geom_tile graph of Relative Abundance by Phylum using ggplot2. 
+
+```{r}
+# We will use ggplot() to produce this graph. 
+# We will use taxa_abundance_table_phylum as our data input, rather than p_realabun, as ggplot()  requires us to use a data frame for plotting.
+# aes() is used here for mapping and aesthetics purposes. We state that samples will be displayed on the x-axis, Phylum on the y-axis, and that the fill of our tiles will align with relative abundance.
+# geom_tile() tells ggplot to make a geom_tile plot, which displays data as a tiled plane of rectangles.
+# scale_fill_gradientn() allows us to create a color palette to help us express relative abundance with colour. In this case, the warmer the colour, the more abundant a Phylum is.
+# labs() tells us that we've set our title to "Heatmap of Relative Abundance by Phylum in Sub-Marine South Pacific Ocean Volcano Pumice Rock". It also informs us we've named our x-axis "Sample", our y-axis "Phylum" and our fill legend "Relative Abundance (%)".
+# Lastly, theme(plot.title = element_text(hjust = 0.5)) ensures our title is centered over our heatmap. 
+ggplot(taxa_abundance_table_phylum, aes(x = Sample, y = Phylum, fill = Abundance)) +
+  geom_tile() +
+  scale_fill_gradientn(colors = c("darkgreen", "yellow", "red")) +
+  labs(title = "Heatmap of Relative Abundance by Phylum in Sub-Marine South Pacific Ocean Volcano Pumice Rock",
+       x = "Sample",
+       y = "Phylum",
+       fill = "Relative Abundance (%)") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+# With that we can conclude this script! Be sure to submit assignment 3 as an RMD file, alongside your completed word document. Great work!
