@@ -7,7 +7,9 @@ The following a pipeline processing 16S amplicon variant sequence (ASV) data. Th
 To install the necessary 
 
 if (!requireNamespace("BiocManager", quietly = TRUE))
+
 install.packages("BiocManager")
+
 BiocManager::install("dada2")
 
 # phyloseq
