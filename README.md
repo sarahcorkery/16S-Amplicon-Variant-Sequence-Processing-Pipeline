@@ -95,13 +95,11 @@ fnFs <- sort(list.files(path, pattern="_R1_001.fastq", full.names = TRUE))
 fnRs <- sort(list.files(path, pattern="_R2_001.fastq", full.names = TRUE))
 ```
 
-```{r}
-# Now, assuming files have the naming format: SAMPLENAME_XXX.fastq, we will extract the forward read sample names present in fnFs to make a list. This is not done for the reverse read sample names as they will be identical to the forward read names.    
+Finally, we will make a list of our sample names using our forward reads for downstream naming purposes. This is not done for the reverse read sample names as they will be identical to the forward read names.
+
+```{r}    
 sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
 ```
-
-
-
 
 ## Step Two: Quality Control
 
@@ -136,23 +134,35 @@ head(out)
 
 ## Step Three: Evaluate Error Rates
 
+Next, we will estimate error rates from our sequencing data as dada2's algorithm relies on a parametric error model to distinguish true biological sequences from sequencing errors. An error rates measures how likely any transition (i.e., A->C, A->G) occurred during sequencing of your data. dada2 does this through the # learnErrors() function. This will give us higher taxonomic resolution compared to what operational taxonomic units would provide.
 
+```{r}
+errF <- learnErrors(filtFs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
+```
+To visualize your error rates, use the script below. 
 
+```{r}
+plotErrors(errF, nominalQ=TRUE)
+```
 
-## Step Three: Merge Paired-End Reads
+We can tell if our rates are good or bad based on whether the estimated error rates (red lines) are a good fit to the observed rates (black lines). If there is too much divergence, our data may not be useable. 
+
+## Step Four: Merge Paired-End Reads
 
 
 Align thousands of 16S rRNA genes so that conserved regions line up 
 Most often we will use a provided reference file for this purpose built off of the Silva reference database (more on Silva later) 
 This is one of the most computational intensive steps ( but there are ways to make it easier*!) 
 
-## Step Four: Evaluate and Identify ASVs 
+## Step Five: Evaluate and Identify ASVs 
 
 ASVs = # of different types of microbes, you can set an OTU to be 100% and this would make it an ASV – they are different in the sense that an OTU does have 100% percent identity
 
 ## Step Six: Assign Taxonomy
 
-# Manual Steps
+
+
 
 # Features:
 A list or description of the main functionalities and capabilities of the project.
