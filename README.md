@@ -4,11 +4,11 @@ The following a pipeline processing 16S amplicon variant sequence (ASV) data. Th
 # Installation Instructions 
 ## dada2 
 
-This pipeline uses a plethora of dada2 functions to process and quantify amplicon sequence variants. Installation instructions can be found here: 
+This pipeline uses a plethora of dada2 functions to process and quantify amplicon sequence variants. Installation instructions can be found at the link below. 
 
 https://benjjneb.github.io/dada2/dada-installation.html
 
-The following script from the installation link was pasted into the console to download dada2 for this pipeline. 
+The following script from the installation link was pasted into the console to download dada2. 
 
 ```{r}
 if (!requireNamespace("BiocManager", quietly = TRUE))
@@ -24,11 +24,11 @@ library(dada2); packageVersion("dada2")
 
 Phyloseq and a set of other packages are required for this processing pipeline. These will allow us to produce high-quality graphs from our processed amplicon sequencing data. 
 
-Installation instructions for phyloseq can be found at the following link: 
+Installation instructions for phyloseq can be found at the following link.
 
 https://www.bioconductor.org/packages/release/bioc/html/phyloseq.html
 
-The following script from the installation link was pasted into the console to download phyloseq for this pipeline. 
+The following script from the installation link was pasted into the console to download phyloseq. 
 
 ```{r}
 if (!require("BiocManager", quietly = TRUE))
@@ -43,7 +43,7 @@ install.packages("ggplot2")
 install.packages("RColorBrewer")
 install.packages("tidyverse")
 ```
-Be sure to load these package's libraries prior to beginning the pipeline. 
+Be sure to load these package's libraries prior to beginning work. 
 
 ```{r}
 library(phyloseq)
@@ -59,10 +59,38 @@ The following code will outline the main steps of 16S Amplicon Sequence Variant 
 
 ## Step One: Experimental Design 
 
-Examples or demonstrations of how to use the project's features and functionalities.
-Code snippets or commands illustrating common use cases.
+This step should be completed prior to 16S ASV processing. Please consider the following: 
 
-## Step Two: Quality Control + processing raw reads 
+### Sequencing Depth: 
+
+How many sequencing runs (or depth) do you require per sample? The standard number of sequencing runs per sample is 10,000 or 1x, and tends to be sufficient (Lundin et al. 2012). Should you desire high sequencing diversity, you will likely require more runs. Check relevant existing literature to determine what a good depth for your work may be. This pipeline will use 1x sequencing depth. 
+
+### Primer Bias: 
+
+Different primers tend to work better for different organisms. Choose 16S primers based on the qualities of the organisms your are working with. 
+
+### Amplicon Size:
+
+We will be created paired-end reads, which are forward and reverse reads joined by a small overlap region. The longer these are, the better. Unfortunately, the length of your reads (or ASVs) is limited by your choice of sequencing method.
+
+## Step Two: Quality Control
+
+The input for the 16S ASV Processsing Pipeline and raw output from your sequencing center will be a .fastq file. These files contain your raw sequencing data and the quality scores associated with each base pair. It is not readable via your text editor. 
+
+Most often, excluding those generated using Nanopore, your reads will be paired-end and need to be assembled. Prior to assembling our reads, we must trim our sequences to remove low quality base pairs. We will aim to trim away base pairs below a quality score of 30. This is imperative as poor quality data can yield inaccurate results. 
+
+We will trim and filter our reads using the filterAndTrim() function. We’ll use standard filtering parameters: maxN=0 (DADA2 requires no Ns, the second it can't decipher a nucleotide it'll through the whole sequence out), truncQ=2, rm.phix=TRUE and maxEE=c(2,2) (maxEE allows two errors per read in the forward and reverse reads). The maxEE parameter sets the maximum number of “expected errors” allowed in a read, which is a better filter than simply averaging quality scores. 
+
+Be sure to change your truncLen parameter to reflect the lengths you want to truncate your forward and reverse reads to.
+
+```{r}
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs,
+              maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
+              compress=TRUE, multithread=TRUE) # On Windows be sure to set multithread=FALSE!
+
+head(out)
+```
+
 ## Step Three: Alignment
 ## Step Four: Identify ASVs 
 
@@ -73,18 +101,18 @@ ASVs = # of different types of microbes, you can set an OTU to be 100% and this 
 
 # Manual Steps
 
-## Features:
+# Features:
 A list or description of the main functionalities and capabilities of the project.
 
-## Technologies Used:
+# Technologies Used:
 A list of programming languages, frameworks, libraries, and other tools utilized in the project.
 
-## Known Issues or Limitations:
+# Known Issues or Limitations:
 A section detailing any known bugs, limitations, or areas for improvement.
 
-## License:
+# License:
 Information about the project's licensing, specifying how others can use and distribute the code.
 
-## Contact Information and Acknowledgments:
+# Contact Information and Acknowledgments:
 Details on how to contact the project maintainers or authors.
 Acknowledgments for any external contributions, resources, or inspirations.
