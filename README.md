@@ -148,6 +148,13 @@ plotErrors(errF, nominalQ=TRUE)
 
 We can tell if our rates are good or bad based on whether the estimated error rates (red lines) are a good fit to the observed rates (black lines). If there is too much divergence, our data may not be useable. 
 
+```{r}
+# Next, we'll be applying the core sample inference algorithm to the filtered and trimmed sequence data. With this command we take each sample's reads and use our error rates to infer which sequences are real biological variants and which are sequencing errors. dada() then infers the true error-free ASVs in each sample and how many reads belong to each. It outputs this all to dadaFs for forward reads and dadaRs for reverse reads. 
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+dadaRs <- dada(filtRs, err=errR, multithread=TRUE)
+dadaFs[[1]]
+```
+
 ## Step Four: Merge Paired-End Reads
 
 
