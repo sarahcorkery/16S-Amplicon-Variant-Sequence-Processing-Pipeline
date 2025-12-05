@@ -148,8 +148,9 @@ plotErrors(errF, nominalQ=TRUE)
 
 We can tell if our rates are good or bad based on whether the estimated error rates (red lines) are a good fit to the observed rates (black lines). If there is too much divergence, our data may not be useable. 
 
+Next, we'll be applying the core sample inference algorithm to our filtered and trimmed sequence data. With this command we take each sample's reads and use our error rates to infer which sequences are real biological variants and which are sequencing errors. dada() then infers the true error-free ASVs in each sample and how many reads belong to each.
+ 
 ```{r}
-# Next, we'll be applying the core sample inference algorithm to the filtered and trimmed sequence data. With this command we take each sample's reads and use our error rates to infer which sequences are real biological variants and which are sequencing errors. dada() then infers the true error-free ASVs in each sample and how many reads belong to each. It outputs this all to dadaFs for forward reads and dadaRs for reverse reads. 
 dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
 dadaRs <- dada(filtRs, err=errR, multithread=TRUE)
 dadaFs[[1]]
@@ -157,12 +158,56 @@ dadaFs[[1]]
 
 ## Step Four: Merge Paired-End Reads
 
+For our next step, we will merge our denoised forward and reverse reads to obtain the full denoised sequences. Merging is performed by aligning the denoised forward reads with the reverse-complement of the corresponding denoised reverse reads, to construct our merged “contig” sequences. 
 
-Align thousands of 16S rRNA genes so that conserved regions line up 
+```{r}
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+```
 Most often we will use a provided reference file for this purpose built off of the Silva reference database (more on Silva later) 
 This is one of the most computational intensive steps ( but there are ways to make it easier*!) 
 
 ## Step Five: Evaluate and Identify ASVs 
+
+We can now construct an ASV table, a higher-resolution version of the OTU table produced by traditional methods.
+
+``{r}
+seqtab <- makeSequenceTable(mergers)
+dim(seqtab)
+```
+
+From here we can inspect the distribution of sequence lengths.
+
+```{r}
+# From here we can inspect the distribution of sequence lengths. 
+table(nchar(getSequences(seqtab)))
+```
+# This sequence table is a matrix with rows corresponding to (and named by) the samples, and columns corresponding to (and named by) the sequence variants or ASVs. It specifically informs us of the abundance of ASVs of a specific length. For instance, only 1 ASV found has a length of 285 base pairs.
+
+# Considerations for your own data: Sequences that are much longer or shorter than expected may be the result of non-specific priming. You can remove non-target-length sequences from your sequence table (eg. seqtab2 <- seqtab[,nchar(colnames(seqtab)) %in% 250:256]). This is analogous to “cutting a band” in-silico to get amplicons of the targeted length.
+
+```{r}
+# While the dada() function corrects substitutions, indel errors and chimeras remain. A chimera is a DNA sequence that incorrectly combines material from two or more genuine biological sequences. Fortunately, the accuracy of sequence variants after denoising makes identifying chimeric ASVs simpler than when dealing with OTUs. Chimeric sequences are identified if they can be exactly reconstructed by combining a left-segment and a right-segment from two more abundant “parent” sequences.
+
+# The following commands will construct and remove chimeras from our collection of sequences. 
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+dim(seqtab.nochim)
+```
+```{r}
+# Here, we're dividing the table containing no chimeras with the table containing chimeras, to get a percentage of chimeric sequences in our original list of ASVs. 
+sum(seqtab.nochim)/sum(seqtab)
+```
+# We can deduce that roughly ~47% of the ASVs in our chimera table were potential chimeras. Oftentimes, large removals of chimeric reads are a result of failure to remove ambiguous nucleotide primer sequences prior to dada2 pipeline processing. In addition, there is a higher risk for chimeras if reads lack necessary overlap for merging.
+
+```{r}
+# As a final check of our progress, we’ll look at the number of reads that made it through each step in the pipeline using the commands below:
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab.nochim))
+
+# If you are processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+rownames(track) <- sample.names
+head(track)
+```
 
 ASVs = # of different types of microbes, you can set an OTU to be 100% and this would make it an ASV – they are different in the sense that an OTU does have 100% percent identity
 
