@@ -256,62 +256,29 @@ track <- read.csv(file = "/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5
 
 # Usage Instructions - phyloseq Processing
 
-# In the next set of chunks, we will change the formatting of our seqtab.nochim table. This is necessary for downstream work with phyloseq, as well as an optional step to merge seqtab.nochim with our taxa table for easier viewing.
+In the next set of chunks, we will change the formatting of our seqtab.nochim table. This is necessary for downstream work with phyloseq, as well as an optional step to merge seqtab.nochim with our taxa table for easier viewing.
 
 ```{r}
 # Step 1: To begin this process, we will first transpose our seqtab.nochim table. You must use the imported seqtab.nochim object (fromm the .csv) in the previous step for this step to run properly. 
 flipped_seqtab.nochim <- as.data.frame(t(seqtab.nochim))
-flipped_seqtab.nochim
-```
-
-
-# In this flipped csv, the header becomes a sequence (ASV) and moves the sample names to the first row (not the header).
-
-```{r}
 # Step 2: Next, we will copy the first row. 
 colnames(flipped_seqtab.nochim) <- flipped_seqtab.nochim[1,]
-# The command below allows us to verify that our formatting is correct thus far. It should look the same as it did following Step 1, apart from the header now stating the correct sample names. 
-View(flipped_seqtab.nochim)
-```
-
-```{r}
 # Step 3: Next, we will delete the first row of our transposed seqtab.nochim table. 
 flipped_seqtab.nochim <- flipped_seqtab.nochim[-1,]
-# The command below allows us to once again verify that our formatting is correct. The first row (not the header) should have been deleted. 
-View(flipped_seqtab.nochim)
-```
-
-# Next we want to change the names of the sequences to "ASV(n)" so it is more digestable than the nucleotide sequence itself. 
-
-```{r}
 # Step 4: In the command below, we will take each column and its corresponding row name, and paste "ASV"1,2,3.. as a new column next to our nucleotide sequence column.  
 rownames(flipped_seqtab.nochim) <- paste0("ASV", 1:nrow(flipped_seqtab.nochim))
-```
-
-```{r}
 # Step 5: Next, we'll remove the nucleotide sequences column and save this new table as flipped_seqtab.nochim_forself for our ease of viewing.  
 flipped_seqtab.nochim_forself <- flipped_seqtab.nochim[,-1]
-```
-
-```{r}
 # Step 6: We will then save these two tables (the one with our nucleotide sequences and the other without) as .csv files. In the event our R Studio session is lost, we can always read these files back in. 
 write.csv(flipped_seqtab.nochim, file = '/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5flipped_seqtab.nochim.csv')
 write.csv(flipped_seqtab.nochim_forself, file ='/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5flipped_seqtab.nochim_forself.csv')
-```
-
-## The following steps are placed outside of a chunk as they are intended to be adjusted prior to running this script.
-
-Manual Step Here: 
-
 # Step 7: Next, as an optional step, we can use the cbind() function to save our flipped seqtab.nochim and taxa data as one csv. This approach offers the most comprehensive view of our ASV abundances and taxonomic classifications.
-
 OTUabund<-cbind(flipped_seqtab.nochim,taxa)
 write.csv(OTUabund,file='/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5OTUabund.csv')
-
-```{r}
 # Step 8: DADA2 generates the taxa object with sequences in the first column, a format incompatible with PHYLOSEQ. To ensure compatibility, we will remove this column using the command below. 
 taxa <-taxa[-1]
-# The command below allows us to verify that our formatting is correct. The first column containing nucleotide sequences should have been deleted.
+```
+ below allows us to verify that our formatting is correct. The first column containing nucleotide sequences should have been deleted.
 View(taxa)
 
 ## Step One: Formatting for phyloseq
