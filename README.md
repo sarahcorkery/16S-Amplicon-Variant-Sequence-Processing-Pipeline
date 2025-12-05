@@ -20,6 +20,15 @@ Be sure to load dada2's library prior to beginning work.
 ```{r}
 library(dada2); packageVersion("dada2")
 ```
+
+## SILVA
+
+To assign taxonomy later in this pipeline, we will be using SILVA. 
+
+Using the link below, we will download the most recent version of SILVA, version 138.2 to our computer.
+
+https://zenodo.org/records/14169026
+
 ## phyloseq
 
 Phyloseq and a set of other packages are required for this processing pipeline. These will allow us to produce high-quality graphs from our processed amplicon sequencing data. 
@@ -163,43 +172,41 @@ For our next step, we will merge our denoised forward and reverse reads to obtai
 ```{r}
 mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
 ```
-Most often we will use a provided reference file for this purpose built off of the Silva reference database (more on Silva later) 
-This is one of the most computational intensive steps ( but there are ways to make it easier*!) 
 
 ## Step Five: Evaluate and Identify ASVs 
 
-We can now construct an ASV table, a higher-resolution version of the OTU table produced by traditional methods.
+An ASV is a unique, error-corrected DNA sequences from amplified marker genes that represent true biological variation. Amplicon sequence variants (ASVs) are grouped only when they share 100% sequence identity, offering greater precision than operational taxonomic units (OTUs), which require only a 97% similarity threshold.
+
+Let's start step five with constructing an ASV table, a higher-resolution version of the OTU table produced by traditional methods.
 
 ``{r}
 seqtab <- makeSequenceTable(mergers)
 dim(seqtab)
 ```
 
-From here we can inspect the distribution of sequence lengths.
+The following code will allow us to inspect the distribution of sequence lengths.
 
 ```{r}
 # From here we can inspect the distribution of sequence lengths. 
 table(nchar(getSequences(seqtab)))
-```
-# This sequence table is a matrix with rows corresponding to (and named by) the samples, and columns corresponding to (and named by) the sequence variants or ASVs. It specifically informs us of the abundance of ASVs of a specific length. For instance, only 1 ASV found has a length of 285 base pairs.
 
-# Considerations for your own data: Sequences that are much longer or shorter than expected may be the result of non-specific priming. You can remove non-target-length sequences from your sequence table (eg. seqtab2 <- seqtab[,nchar(colnames(seqtab)) %in% 250:256]). This is analogous to “cutting a band” in-silico to get amplicons of the targeted length.
+```
+
+While the dada() function corrects substitutions, indel errors and chimeras remain. Fortunately, the accuracy of sequence variants after denoising makes identifying chimeric ASVs simpler than when dealing with OTUs. The following script will construct and remove chimeras from our collection of sequences. 
 
 ```{r}
-# While the dada() function corrects substitutions, indel errors and chimeras remain. A chimera is a DNA sequence that incorrectly combines material from two or more genuine biological sequences. Fortunately, the accuracy of sequence variants after denoising makes identifying chimeric ASVs simpler than when dealing with OTUs. Chimeric sequences are identified if they can be exactly reconstructed by combining a left-segment and a right-segment from two more abundant “parent” sequences.
-
-# The following commands will construct and remove chimeras from our collection of sequences. 
 seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
 dim(seqtab.nochim)
 ```
-```{r}
-# Here, we're dividing the table containing no chimeras with the table containing chimeras, to get a percentage of chimeric sequences in our original list of ASVs. 
-sum(seqtab.nochim)/sum(seqtab)
-```
-# We can deduce that roughly ~47% of the ASVs in our chimera table were potential chimeras. Oftentimes, large removals of chimeric reads are a result of failure to remove ambiguous nucleotide primer sequences prior to dada2 pipeline processing. In addition, there is a higher risk for chimeras if reads lack necessary overlap for merging.
+
+Finally, we will divide the table containing no chimeras with the table containing chimeras, to get a percentage of chimeric sequences in our original list of ASVs. 
 
 ```{r}
-# As a final check of our progress, we’ll look at the number of reads that made it through each step in the pipeline using the commands below:
+sum(seqtab.nochim)/sum(seqtab)
+
+As a final check of our progress, we will look at the number of reads that made it through each step in the pipeline using the commands below:
+
+```{r}
 getN <- function(x) sum(getUniques(x))
 track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab.nochim))
 
@@ -209,11 +216,28 @@ rownames(track) <- sample.names
 head(track)
 ```
 
-ASVs = # of different types of microbes, you can set an OTU to be 100% and this would make it an ASV – they are different in the sense that an OTU does have 100% percent identity
-
 ## Step Six: Assign Taxonomy
 
+For step six, we will assign taxonomy to our sequences using the assignTaxonomy() function. This function requires appropriately formatted FASTA files containing taxonomically classified reference sequences to use as a training dataset. To facilitate this process, we will download the SILVA taxonomy database, which provides the necessary reference sequences for accurate taxonomic assignment.
 
+We must state the path to this file on our computer in the assignTaxonomy() function below. Be sure to state the version of SILVA you used when publishing your findings. Using the command below, we tell DADA2 to assign taxonomy to our seqtab.nochim matrix, containing our non-chimeric ASVs and their abundances. The assignTaxonomy() function will use SILVA, version 138.2 as a training dataset to assign taxonomy. 
+
+```{r}
+taxa <- assignTaxonomy(seqtab.nochim, "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/R files/Silva/silva_nr99_v138.2_toSpecies_trainset.fa.gz", multithread=TRUE)
+```
+
+# DADA2 only makes species level assignments based on exact matching between ASVs and sequenced reference strains. Recent analysis suggests that exact matching (or 100% identity) is the only appropriate way to assign species to 16S gene fragments.
+
+```{r}
+# The addSpecies() function will assign species-level annotation to our taxonomic table. We will assign this table as an object called taxa. 
+taxa <- addSpecies(taxa, "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/R files/Silva/silva_v138.2_assignSpecies.fa.gz")
+```
+
+```{r}
+# Next, we will inspect the taxonomic assignment by removing sequence rownames for display purposes only.
+taxa.print <- taxa
+rownames(taxa.print) <- NULL
+head(taxa.print)
 
 
 # Features:
