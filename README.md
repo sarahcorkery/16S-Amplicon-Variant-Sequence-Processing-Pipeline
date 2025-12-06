@@ -89,12 +89,12 @@ First, you must saving your raw sequencing files to where you intend to set your
 Next, we will assign our working directory. Be sure to set your working directory to where your sequence files are located!
 
 ```{r}
-setwd("/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq")
+setwd("state_working_directory_here")
 ```
 To make the location to these files more easily accessible for downstream commands, be sure to assign your working directory (i.e., where our files are located) to an object called path.
 
 ```{r}
-path<-"/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq"
+path<-"state_working_directory_here"
 ```
 
 At this point, we must verify that our forward and reverse fastq files have the naming format: SAMPLENAME_R1_001.fastq and SAMPLENAME_R2_001.fastq. Below, we will tell R studio what formatting represents a forward and reverse read file. This is done by assigning forward and reverse reads to the objects fnFs for forward reads, and fnRs for reverse reads. 
@@ -220,13 +220,13 @@ For step six, we will assign taxonomy to our sequences using the assignTaxonomy(
 We must state the path to this file on our computer in the assignTaxonomy() function below. Using the command below, we tell DADA2 to assign taxonomy to our seqtab.nochim matrix, which contains our non-chimeric ASVs and their abundances.
 
 ```{r}
-taxa <- assignTaxonomy(seqtab.nochim, "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/R files/Silva/silva_nr99_v138.2_toSpecies_trainset.fa.gz", multithread=TRUE)
+taxa <- assignTaxonomy(seqtab.nochim, "/path_to_silva/Silva/silva_nr99_v138.2_toSpecies_trainset.fa.gz", multithread=TRUE)
 ```
 
 dada2 only makes species level assignments based on exact matching between ASVs and sequenced reference strains. Below, the addSpecies() function will assign species-level annotation to our taxonomic table.
 
 ```{r} 
-taxa <- addSpecies(taxa, "/Users/sarahcorkery/Desktop/6452 02 - Bioinformatics/R files/Silva/silva_v138.2_assignSpecies.fa.gz")
+taxa <- addSpecies(taxa, "/path_to_silva/Silva/silva_v138.2_assignSpecies.fa.gz")
 ```
 
 Lastly, we will inspect the taxonomic assignmnet by removing sequence rownames for display purposes only
@@ -242,19 +242,19 @@ head(taxa.print)
 Finally, we will save our taxa object, containing taxonomic assignments, our seqtab.nochim object, containing our ASVs and their abundances, and our track object, showing the remaining reads following each step of the DADA2 pipeline as .csv files. This step will allow us to save our progress, and later read in data, in the event our objects are lost or we terminate our R Studio session. 
 
 ```{r}
-write.csv(taxa, file = "/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5_taxa.csv")
+write.csv(taxa, file = "/state_working_directory_here/insert_your_file_name_here_TAXA.csv")
 
-write.csv(seqtab.nochim, file = "/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5_seqtabnochim.csv")
+write.csv(seqtab.nochim, file = "/state_working_directory_here/insert_your_file_name_here_SEQTABNOCHIM.csv")
 
-write.csv(track, file = "/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5_track.csv")
+write.csv(track, file = "/state_working_directory_here/insert_your_file_name_here_TRACK.csv")
 ```
 
 Using the commands below, we can read in the taxa, seqtab.nochim and track objects using the .csv files we made in the previous step. This is essential in the event our objects are lost or we terminate our R studio session:
 
 ```{r}
-taxa <- read.csv(file = "/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5_taxa.csv")
-seqtab.nochim <- read.csv(file = "/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5_seqtabnochim.csv", header = FALSE)
-track <- read.csv(file = "/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5_track.csv")
+taxa <- read.csv(file = "/state_working_directory_here/insert_your_file_name_here_TAXA.csv")
+seqtab.nochim <- read.csv(file = "/state_working_directory_here/insert_your_file_name_here_SEQTABNOCHIM.csv", header = FALSE)
+track <- read.csv(file = "/state_working_directory_here/insert_your_file_name_here_TRACK.csv")
 ```
 
 # Usage Instructions - phyloseq Processing
@@ -296,15 +296,15 @@ flipped_seqtab.nochim_forself <- flipped_seqtab.nochim[,-1]
 ### Step F: We will then save these two tables (the one with our nucleotide sequences and the other without) as .csv files. In the event our R Studio session is lost, we can always read these files back in. 
 
 ```{r}
-write.csv(flipped_seqtab.nochim, file = /path_to_your_file/filename.csv')
-write.csv(flipped_seqtab.nochim_forself, file ='/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5flipped_seqtab.nochim_forself.csv')
+write.csv(flipped_seqtab.nochim, file = "/state_working_directory_here/insert_your_file_name_here_FLIPPEDSEQTABNOCHIM.csv")
+write.csv(flipped_seqtab.nochim_forself, file ="/state_working_directory_here/insert_your_file_name_here_FLIPPEDSEQTABNOCHIM_forself.csv")
 ```
 
 ### Step G: Next, as an optional step, we can use the cbind() function to save our flipped seqtab.nochim and taxa data as one csv. This approach offers the most comprehensive view of our ASV abundances and taxonomic classifications.
 
 ```{r}
 OTUabund<-cbind(flipped_seqtab.nochim,taxa)
-write.csv(OTUabund,file='/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5OTUabund.csv')
+write.csv(OTUabund,file="/state_working_directory_here/insert_your_file_name_here_OTUabund.csv")
 ```
 
 ### Step H: DADA2 generates the taxa object with sequences in the first column, a format incompatible with PHYLOSEQ. To ensure compatibility, we will remove this column using the command below. 
@@ -418,7 +418,7 @@ taxa_abundance_table_phylum$Phylum<-factor(taxa_abundance_table_phylum$Phylum)
 Here we will save our relative abundance table as a .csv file for easy access downstream.  
 
 ```{r}
-write.csv(taxa_abundance_table_phylum, file = "/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5RelativeAbundance.csv")
+write.csv(taxa_abundance_table_phylum, file = "/state_working_directory_here/insert_your_file_name_here_RelativeAbundance.csv")
 ```
 
 The following command uses plot_bar() to create a relative abundance table of our samples by Phylum. 
