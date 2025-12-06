@@ -179,7 +179,7 @@ An ASV is a unique, error-corrected DNA sequences from amplified marker genes th
 
 Let's start step five with constructing an ASV table, a higher-resolution version of the OTU table produced by traditional methods.
 
-``{r}
+```{r}
 seqtab <- makeSequenceTable(mergers)
 dim(seqtab)
 ```
@@ -490,9 +490,15 @@ The phyloseq portion of this script can be attributed to Lecture 6 from Jacqueli
 ## Bibliography
 
 Callahan, B. J., McMurdie, P. J., Rosen, M. J., Han, A. W., Johnson, A. J., & Holmes, S. P. (2016). DADA2: High-resolution sample inference from Illumina amplicon     data. Nature methods, 13(7), 581–583. https://doi.org/10.1038/nmeth.3869
+
 Chuvochina M, Gerken J, Frentrup M, Sandikci Y, Goldmann R, Freese HM, Göker M, Sikorski J, Yarza P, Quast C, Peplies J, Glöckner FO, Reimer LC (2026) SILVA in         2026: a global core biodata resource for rRNA within the DSMZ digital diversity. Nucleic Acids Research, gkaf1247.
+
 McMurdie and Holmes (2013) phyloseq: An R Package for Reproducible Interactive Analysis and Graphics of Microbiome Census Data. PLoS ONE. 8(4):e61217
+
 Neuwirth E (2022). RColorBrewer: ColorBrewer Palettes. R package version 1.1-3, https://CRAN.R-project.org/package=RColorBrewer.
+
 Pagès H, Aboyoun P, Gentleman R, DebRoy S (2025). Biostrings: Efficient manipulation of biological strings. R package version 2.76.0,                                   https://github.com/bioconductor/biostrings
+
 Wickham H (2016). ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag New York. ISBN 978-3-319-24277-4, https://ggplot2.tidyverse.org.
+
 Wickham H, Averick M, Bryan J, Chang W, McGowan LD, François R, Grolemund G, Hayes A, Henry L, Hester J, Kuhn M, Pedersen TL, Miller E, Bache SM, Müller K, Ooms J,     Robinson D, Seidel DP, Spinu V, Takahashi K, Vaughan D, Wilke C, Woo K, Yutani H (2019). “Welcome to the tidyverse.” Journal of Open Source Software, 4(43),        1686. doi:10.21105/joss.01686.
