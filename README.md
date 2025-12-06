@@ -316,7 +316,7 @@ taxa <-taxa[-1]
 View(taxa)
 ```
 
-## Step Two: 
+## Step Two: Secondary phyloseq Formatting
 
 Next, we will continue to format our data such that it can be used by phyloseq. 
 
@@ -332,41 +332,103 @@ Next, we will make the final formatting changes to our transposed seqtab.nochim 
 otumat <- flipped_seqtab.nochim[,-1]
 ```
 
-Before proceeding, we must ensure both otumat and taxmat are matrices for downstream phyloseq processing using the script below. 
+Before proceeding, we will ensure ensure both otumat and taxmat are matrices for downstream phyloseq processing using the script below. 
 
 ```{r}
 class(otumat)
 class(taxmat)
 ```
 
-# Since both objects are now matrices, we can move onto our last bit of formatting.
+Next, we will ensure that the row names are ASVs for both matrices. This is also required for downstream phyloseq processing.  
 
 ```{r}
-# We will first ensure that the row names are ASVs for both objects:
 rownames(otumat) <- paste0("ASV", 1:nrow(otumat))
 rownames(taxmat) <- paste0("ASV", 1:nrow(taxmat))
 
-# We can verify this is the case using the commands below:
-View(otumat)
-View(taxmat)
+We also must ensure R Studio recognizes our OTU data as numeric and not as character data.
 
-# Lastly, we must make sure R Studio recognizes our OTU data as numeric and not as character data. 
+```{r}
 class(otumat)<-"numeric"
 ```
 
-# Now that we've verified that our rownames are ASVs and that R recognizes otumat as numeric data, we can use PHYLOSEQ to continue analysis. 
+Next, we will tell phyloseq where our "OTU" data can be found (i.e., within the otumat object). 
 
 ```{r}
-# The next command is PHYLOSEQ-specific. Here, we are telling PHYLOSEQ where our "OTU" data can be found (i.e., within the otumat object). 
 OTU = otu_table(otumat, taxa_are_rows = TRUE)
 # Note: the function on line 354 is otu_table(). 
 ```
+
+We will also tell it where our "Taxa" data can be found (i.e., within the taxmat object).
  
 ```{r}
-# Next, we will tell PHYLOSEQ where our "Taxa" data can be found (i.e., within the taxmat object).
 TAX = tax_table(taxmat)
 # Note: the function on line 360 is tax_table(). 
 ```
+
+Finally, we will tell phyloseq to combine our "OTU" and "Taxa" data into an object called physeq. We will also instruct phyloseq to include the names of our samples in the physeq object. 
+
+```{r}
+physeq = phyloseq(OTU, TAX)
+physeq
+sample_names(physeq)
+samplenames<-sample_names(physeq)
+```
+## Step Three: Graph Production
+
+In the following script, we will create graphs showcasing the abundance and relative abundance of our ASVs by taxonomic rank. 
+
+```{r}
+# We will begin with creating a bar graph of our sample's absolute abundance by Phylum using the plot_bar() function.
+phylum_barplot <- plot_bar(physeq, fill = "Phylum")
+phylum_barplot
+```
+
+# Here, the space between each dark line represents the absolute abundance of a particular ASV. Unfortunately, these lines distract from the message of the plot, so we can remove them using ggplot2's geom_bar() function.
+
+```{r}
+# The following commands will remove the dark ASV lines from our Phylum absolute abundance graph. 
+phylum_barstacked <- phylum_barplot + geom_bar(aes(fill=Phylum), stat="identity", position="stack")
+phylum_barstacked
+```
+
+# Next, we will begin to create a relative abundance plot. 
+
+```{r}
+# The first step will use the tax_glom() PHYLOSEQ function to "glom" together ASVs based on our taxonomic assignment of choice. In this case, we will be combining our taxonomic data by Phylum to visualize downstream Phyla relative abundance.
+g_phylum <- tax_glom(physeq, "Phylum")
+```
+
+```{r}
+# The next command uses the plot_bar() function to plot our "glommed" g_phylum graph. We can use this graph to observe the differences in Phylum abundance more easily.
+plot_bar(g_phylum, fill="Phylum")
+```
+
+```{r}
+# Now that we've "glommed" together our taxa by Phylum, we can make a relative abundance graph from our absolute abundance data. We can do this by tallying up the ASVs within each taxa in one sample, and dividing by its total number of ASVs. Then we can use psmelt() to remove phyloseq's formatting and make the data easier to plot.
+ps_phylum_relabun <- transform_sample_counts(g_phylum, function(ASV) ASV/sum(ASV))
+taxa_abundance_table_phylum <- psmelt(ps_phylum_relabun)
+
+# Lastly, we will factor our Phylum values for downstream graphing. 
+taxa_abundance_table_phylum$Phylum<-factor(taxa_abundance_table_phylum$Phylum)
+```
+
+```{r}
+# Here we will save our relative abundance table as a .csv file for easy access downstream.  
+write.csv(taxa_abundance_table_phylum, file = "/Users/sarahcorkery/Desktop/ASV Processing/CorkeryV4V5/new_fastq/output_files/CorkeryV4V5RelativeAbundance.csv")
+```
+
+```{r}
+# The following command uses plot_bar() to create a relative abundance table of our samples by Phylum. Here, we're plotting our absolute abundance PHYLOSEQ object ps_phylum_relabun. We state the fill of our bars using Phylum, and assign a title and axes titles using the labs() command. In order to fit the title below above our graph, we must set its size to 12 using the theme() command. 
+p_realabun<-plot_bar(ps_phylum_relabun, fill = "Phylum") + labs(y="Relative Abundance (%)", x= "Sample", title = "3-4cm Core DNA and cDNA & Cyanobacterial Viability Assay Relative Abundance") + theme(plot.title = element_text(size = 12))
+p_realabun
+```
+
+# As mentioned, paste the script in the chunk above into the console to be able to export this graph. 
+
+```{r}
+# Should we desire to eliminate the dark lines present between each Phylum, we can assign the position argument within ggplot2's geom_bar() function as "stack":
+p_abun_stacked<- p_realabun + geom_bar(aes(fill=Phylum), stat="identity", position="stack")
+p_abun_stacked
 
 # Features:
 A list or description of the main functionalities and capabilities of the project.
